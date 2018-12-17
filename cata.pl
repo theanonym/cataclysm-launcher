@@ -55,12 +55,6 @@ $LWP->cookie_jar({});
 
 our %OPT;
 
-our %MODS = (
-   "pc_rebalance" => { name => "PK's Rebalancing", url => "https://github.com/Dissociativity/PKs_Rebalancing/archive/master.zip" },
-   "cataclysm++"  => { name => "Cataclysm++", url => "https://github.com/Noctifer-de-Mortem/nocts_cata_mod/archive/master.zip" },
-   "arcana"       => { name => "Arcana", url => "https://github.com/chaosvolt/cdda-arcana-mod/archive/master.zip" },
-);
-
 ################################################################################
 #
 # Код лаунчера
@@ -313,9 +307,8 @@ sub update_2ch_musicpack() {
                 unlink $archive_name; 
 }
 
-sub update_mod {
-   my($mod_name) = @_;
-   my $mod = $MODS{$mod_name} or say "Unknown mod '$mod_name'!" and return;
+sub install_mod_from_github {
+   my($github_link) = @_;
 
    unless(-d "mods") {
       say "Create 'mods'";
@@ -323,15 +316,22 @@ sub update_mod {
    }
    
    # Download 
-   my($ext) = $mod->{url} =~ /\.([^\.]*)$/;
-   my $archive_name = "$mod->{name}.$ext";
-   my $mod_path = catdir "mods", $mod->{name};
-
+   $github_link =~ s~/\s*$~~s;
+   my $url = "$github_link/archive/master.zip";
+   my ($mod_name) = $github_link =~ m~/([^/]*)$~;
+   my $archive_name = "$mod_name.zip";
+   
    say "Download '$archive_name'";
    ($OPT{nodownload} && -s $archive_name) ? say "...skip download (--nodownload option)" :
-                                            download_file $mod->{url}, $archive_name;
+                                            download_file $url, $archive_name;
 
    # Extract
+   my $mod_path = catdir "mods", "$mod_name-master";
+   if(-d $mod_path) {
+      say "Delete '$mod_path'";
+      remove_tree $mod_path;
+   }
+   
    say "Extract '$archive_name' -> 'mods'";
    my $archive = Archive::Extract->new(archive => $archive_name);
    $archive->extract(to => "mods");
@@ -672,11 +672,7 @@ Resources:
    --2chmusic    Install/Update 2ch Music Pack
 
 Mods:
-   --mod %       Install/Update a mod
-                 Supported mods:
-                    pc_rebalance
-                    cataclysm++
-                    arcana
+   --mod [link]  Install/Update a mod from gihub
 
 Options:
    --keep        Don't delete temporal files
@@ -703,6 +699,6 @@ update_2ch_soundpack  if $OPT{"2chsound"};
 update_2ch_musicpack  if $OPT{"2chmusic"};
 fast_mod_restore      if $OPT{restore};
 fast_mod_apply        if $OPT{fastmod};
-if($OPT{mod})  { update_mod $_ and say "" for @{$OPT{mod}}; }
+if($OPT{mod})  { install_mod_from_github $_ for @{$OPT{mod}}; }
 if($OPT{save}) { say "Backup saves...";  backup_files "save", "save.bk"; }
 if($OPT{load}) { say "Restore saves..."; backup_files "save.bk", "save"; }
