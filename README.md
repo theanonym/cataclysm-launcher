@@ -31,7 +31,7 @@ perl cata.pl --help
 curl -L https://cpanmin.us | perl - App::cpanminus
 cpanm --notest XXX::XXX
 ```
-Должно хватить этих:
+Команда для установки всех модулей сразу:
 ```bash
 cpanm --notest File::Slurp File::Find::Rule List::MoreUtils Archive::Extract LWP JSON
 ```
