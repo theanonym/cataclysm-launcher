@@ -20,7 +20,7 @@ perl cata.pl --help
 ```
 cd Cataclysm
 git clone https://github.com/theanonym/cataclysm-launcher.git
-ln -s cataclysm-launcher/cata.pl .
+ln -s cataclysm-launcher/cata.pl cata.pl
 
 perl cata.pl --help
 ```
