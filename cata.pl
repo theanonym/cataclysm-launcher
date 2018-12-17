@@ -55,6 +55,12 @@ $LWP->cookie_jar({});
 
 our %OPT;
 
+our %MODS = (
+   "pc_rebalance" => { name => "PK's Rebalancing", url => "https://github.com/Dissociativity/PKs_Rebalancing/archive/master.zip" },
+   "cataclysm++"  => { name => "Cataclysm++", url => "https://github.com/Noctifer-de-Mortem/nocts_cata_mod/archive/master.zip" },
+   "arcana"       => { name => "Arcana", url => "https://github.com/chaosvolt/cdda-arcana-mod/archive/master.zip" },
+);
+
 ################################################################################
 #
 # Код лаунчера
@@ -105,7 +111,7 @@ sub download_file($$) {
    my $res = $LWP->get($url, ":content_file" => $path_to_save);
    $LWP->show_progress(0);
    
-   die unless $res->is_success && -s $path_to_save;
+   die "Download error" unless $res->is_success && -s $path_to_save;
 }
 
 sub backup_files($$) {
@@ -299,6 +305,36 @@ sub update_2ch_musicpack() {
    say "Extract '$archive_name' -> '$unpacked_folder'";
    my $archive = Archive::Extract->new(archive => $archive_name);
    $archive->extract(to => $unpacked_folder);
+   die $archive->error if $archive->error;
+   
+   # Clean up
+   say "Delete '$archive_name'";
+   $OPT{keep} ? say "...skip deletion (--keep option)" :
+                unlink $archive_name; 
+}
+
+sub update_mod {
+   my($mod_name) = @_;
+   my $mod = $MODS{$mod_name} or say "Unknown mod '$mod_name'!" and return;
+
+   unless(-d "mods") {
+      say "Create 'mods'";
+      mkdir "mods";
+   }
+   
+   # Download 
+   my($ext) = $mod->{url} =~ /\.([^\.]*)$/;
+   my $archive_name = "$mod->{name}.$ext";
+   my $mod_path = catdir "mods", $mod->{name};
+
+   say "Download '$archive_name'";
+   ($OPT{nodownload} && -s $archive_name) ? say "...skip download (--nodownload option)" :
+                                            download_file $mod->{url}, $archive_name;
+
+   # Extract
+   say "Extract '$archive_name' -> 'mods'";
+   my $archive = Archive::Extract->new(archive => $archive_name);
+   $archive->extract(to => "mods");
    die $archive->error if $archive->error;
    
    # Clean up
@@ -615,6 +651,7 @@ GetOptions \%OPT,
    "check", "update", "save", "load",
    "2chtiles", "2chsound", "2chmusic",
    "fastmod", "restore",
+   "mod=s@",
    # Options
    "nodownload", "keep", "curses",
    "help|?"    => sub {
@@ -633,6 +670,13 @@ Resources:
    --2chtileset  Install/Update Dead People tileset
    --2chsound    Install/Update 2ch Sounpack
    --2chmusic    Install/Update 2ch Music Pack
+
+Mods:
+   --mod %       Install/Update a mod
+                 Supported mods:
+                    pc_rebalance
+                    cataclysm++
+                    arcana
 
 Options:
    --keep        Don't delete temporal files
@@ -659,5 +703,6 @@ update_2ch_soundpack  if $OPT{"2chsound"};
 update_2ch_musicpack  if $OPT{"2chmusic"};
 fast_mod_restore      if $OPT{restore};
 fast_mod_apply        if $OPT{fastmod};
-do { say "Backup saves...";  backup_files "save", "save.bk"; } if $OPT{save};
-do { say "Restore saves..."; backup_files "save.bk", "save"; } if $OPT{load};
+if($OPT{mod})  { update_mod $_ and say "" for @{$OPT{mod}}; }
+if($OPT{save}) { say "Backup saves...";  backup_files "save", "save.bk"; }
+if($OPT{load}) { say "Restore saves..."; backup_files "save.bk", "save"; }
