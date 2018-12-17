@@ -67,9 +67,10 @@ sub get_build_version($) {
 
 sub fetch_latest_game_url() {
    my($sysname, $arch) = (POSIX::uname)[0, 4];
-   my $page_url = sprintf "http://dev.narc.ro/cataclysm/jenkins-latest/%s%s/Tiles/",
+   my $page_url = sprintf "http://dev.narc.ro/cataclysm/jenkins-latest/%s%s/%s/",
                           $sysname =~ /win/i ? "Windows" : "Linux",
-                          $arch =~ /64/  ? "_x64" : "";
+                          $arch =~ /64/  ? "_x64" : "",
+                          $OPT{curses} ? "Curses" : "Tiles";
                       
    my $res = $LWP->get($page_url);
    die unless $res->is_success;
@@ -145,8 +146,6 @@ sub update_game() {
    $OPT{nodownload} && -s $archive_name ?  say "...skip download (--nodownload option)" :
                                            download_file $url, $archive_name; 
 
-
-
    # Save important files
    my $data_folder = "data";
    my $tmp_folder = "important_files.tmp";
@@ -155,22 +154,22 @@ sub update_game() {
       say "Create '$tmp_folder'";
       make_path catdir $tmp_folder, $data_folder ;
       make_path catdir $tmp_folder, "gfx";
-   }
-   
-   for my $important_file(catfile($data_folder, "fontdata.json"),
-                          catfile($data_folder, "font"),
-                          catfile("gfx", "MSX++DeadPeopleEdition"),
-   ) {
-      my $new_path = catdir $tmp_folder, $important_file;
-      
-      if(-d $important_file) {
-         say "Copy '$important_file' -> '$new_path'";
-         dircopy $important_file, $new_path or die $!;
-      } elsif(-f $important_file) {
-         say "Copy '$important_file' -> '$new_path'";
-         copy $important_file, $new_path or die $!;
-      } else {
-         say "'$important_file' not found";
+
+      for my $important_file(catfile($data_folder, "fontdata.json"),
+                             catfile($data_folder, "font"),
+                             catfile("gfx", "MSX++DeadPeopleEdition"),
+      ) {
+         my $new_path = catdir $tmp_folder, $important_file;
+         
+         if(-d $important_file) {
+            say "Copy '$important_file' -> '$new_path'";
+            dircopy $important_file, $new_path or die $!;
+         } elsif(-f $important_file) {
+            say "Copy '$important_file' -> '$new_path'";
+            copy $important_file, $new_path or die $!;
+         } else {
+            say "'$important_file' not found";
+         }
       }
    }
 
@@ -193,18 +192,20 @@ sub update_game() {
       # rmdir $archive->extract_path;
    }
    
-   # Restore important files
-   printf "Copy '%s' -> '%s'\n", catdir($tmp_folder, $data_folder), ".";
-   dircopy $tmp_folder, ".";
+   say "Create '$VERSION_FILE'";
+   write_file $VERSION_FILE, get_build_version $url;
    
-   # Clean up
+   # Restore important files
    if(-d $tmp_folder) {
+      printf "Copy '%s' -> '%s'\n", catdir($tmp_folder, $data_folder), ".";
+      dircopy $tmp_folder, ".";
+   
       say "Delete '$tmp_folder'";
       $OPT{keep} ? say "...skip deletion (--keep option)" :
                    remove_tree $tmp_folder; 
-
    }
    
+   # Clean up
    say "Delete '$archive_name'";
    $OPT{keep} ? say "...skip deletion (--keep option)" :
                 unlink $archive_name; 
@@ -610,12 +611,12 @@ sub fast_mod_apply {
 ################################################################################
 
 GetOptions \%OPT,
-   "check", "update",
+   # Actions
+   "check", "update", "save", "load",
    "2chtiles", "2chsound", "2chmusic",
-   "nodownload", "keep",
    "fastmod", "restore",
-   "save"      => sub { say "Backup saves...";  backup_files "save", "save.bk"; exit },
-   "load"      => sub { say "Restore saves..."; backup_files "save.bk", "save"; exit },
+   # Options
+   "nodownload", "keep", "curses",
    "help|?"    => sub {
    print <<USAGE;
 Game:
@@ -623,6 +624,7 @@ Game:
    --update      Install/Update game to latest version
                  Warning: non-standard mods in data/mods will be deleted,
                  use mods/ folder for them.
+   --curses      Dowload Curses version of game
                
    --save        Backup saves
    --load        Restore saves
@@ -657,3 +659,5 @@ update_2ch_soundpack  if $OPT{"2chsound"};
 update_2ch_musicpack  if $OPT{"2chmusic"};
 fast_mod_restore      if $OPT{restore};
 fast_mod_apply        if $OPT{fastmod};
+do { say "Backup saves...";  backup_files "save", "save.bk"; } if $OPT{save};
+do { say "Restore saves..."; backup_files "save.bk", "save"; } if $OPT{load};

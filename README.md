@@ -18,7 +18,7 @@ perl cata.pl --help
 
 ### Linux
 Можно клонировать эту репу в папку с игрой и линкануть скрипт:
-```shell
+```bash
 cd Cataclysm
 git clone https://github.com/theanonym/cataclysm-launcher.git
 ln -s cataclysm-launcher/cata.pl cata.pl
