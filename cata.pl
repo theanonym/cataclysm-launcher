@@ -6,7 +6,6 @@ no warnings "experimental";
 
 use Getopt::Long;
 use FindBin;
-use POSIX qw/uname/;
 use Cwd qw/abs_path/;
 use File::Basename qw/basename dirname/;
 use File::Spec::Functions qw/catfile catdir canonpath/;
@@ -93,7 +92,6 @@ sub get_build_version($) {
 }
 
 sub fetch_latest_game_url() {
-   my($sysname, $arch) = (POSIX::uname)[0, 4];
    my $page_url = sprintf "http://dev.narc.ro/cataclysm/jenkins-latest/%s%s/%s/",
                           $IS_WINDOWS  ? "Windows" : "Linux",
                           $IS_64bit    ? "_x64"    : "",
@@ -208,7 +206,7 @@ sub update_game() {
    
    if(-d $FASTMOD_CONFIG->{fastmod_data_backup}) {
       say "Delete '$FASTMOD_CONFIG->{fastmod_data_backup}'";
-      remove_tree $data_folder;
+      remove_tree $FASTMOD_CONFIG;
    }
    
    say "Extract '$archive_name' -> '$unpacked_folder'";
@@ -381,7 +379,7 @@ sub install_mod_from_github {
 #
 ################################################################################
 sub report(@) {
-   my(@strings) = join "\n", @_;
+   my(@strings) = map { "$_\n" } @_;
 
    state $log;
    open $log, ">", catfile($LAUNCHER_PATH, $FASTMOD_CONFIG->{log_file}) unless defined $log;
@@ -647,7 +645,6 @@ sub fast_mod_apply {
       }
       
       if($file_modified) {
-         say "Edit file '$file_path'";
          write_file $file_path, perl_to_json $json;
          
          $count{modified}++;
@@ -660,6 +657,8 @@ sub fast_mod_apply {
           "Books: $count{books}",
           "Recipes: $count{recipes}",
           "Mutations: $count{mutations}";
+          
+   say "Done. Read '$FASTMOD_CONFIG->{log_file}' for details.";
 }
 
 ################################################################################
