@@ -5,9 +5,10 @@ use autodie;
 no warnings "experimental";
 
 use Getopt::Long;
+use FindBin;
 use POSIX qw/uname/;
 use Cwd qw/abs_path/;
-use File::Basename qw/basename/;
+use File::Basename qw/basename dirname/;
 use File::Spec::Functions qw/catfile catdir canonpath/;
 use File::Slurp qw/read_file write_file/;
 use File::Path qw/remove_tree make_path/;
@@ -22,32 +23,21 @@ use JSON;
 
 ################################################################################
 #
-# Настройки мода Fast Cata
-#
-################################################################################
-our %MOD_SETTINGS = (
-   # Коэффициенты времени выполнения
-   # 1 = 100%
-   parts_install_time => 0.2, # Время установки деталей 0.2 = 20%
-   parts_repair_time  => 0.2, # Ремонта
-   parts_removal_time => 0.2, # Удаления
-   
-   craft_time         => 0.2, # Время крафта
-   books_time         => 0.2, # Чтения
-   
-   # К указанной мутации добавляется эффект ускоренного сна
-   sleep_acceliration => 1.0,            # 1.0 = энергия восстанавливается на 100% быстрее
-   sleep_mutation_id  => "HEAVYSLEEPER", # Крепкий сон
-);
-
-################################################################################
-#
 # Глобальные переменные
 #
 ################################################################################
-our $VERSION_FILE = "_VERSION.txt";
-our $DATA_BACKUP  = "data.bk";
-our $MOD_LOG      = "cata.pl.log";
+our $IS_WINDOWS = $ENV{OS} =~ /win/i;
+our $IS_64bit   = $ENV{PROCESSOR_ARCHITECTURE} =~ /64/;
+
+our $LAUNCHER_PATH = $FindBin::Bin;
+
+our $MAIN_CONFIG     = json_to_perl(read_file catfile($LAUNCHER_PATH, "launcher_config.json"));
+our $FASTMOD_CONFIG  = json_to_perl(read_file catfile($LAUNCHER_PATH, "fastmod_config.json"));
+die "Cannot load config files." unless $MAIN_CONFIG && $FASTMOD_CONFIG;
+
+our $GAME_PATH = $MAIN_CONFIG->{game_path} ? $MAIN_CONFIG->{game_path} : catdir $LAUNCHER_PATH, "..";
+
+chdir $GAME_PATH;
 
 our $LWP = LWP::UserAgent->new;
 $LWP->agent("Mozilla/5.0 (Windows NT 6.1; rv:64.0) Gecko/20100101 Firefox/64.0");
@@ -60,6 +50,43 @@ our %OPT;
 # Код лаунчера
 #
 ################################################################################
+sub json_to_perl($) {
+   my($json_string) = join "\n", @_;
+   JSON->new->utf8->decode($json_string);
+}
+
+sub perl_to_json($) {
+   my($array_ref) = @_;
+   JSON->new->utf8->allow_nonref->pretty->encode($array_ref);
+}
+
+#------------------------------------------------------------
+
+sub get_game_executable() {
+   if($IS_WINDOWS) {
+      for("cataclysm.exe", "cataclysm-tiles.exe") {
+         my $file = catfile $GAME_PATH, $_;
+         -f $file and return $file;
+      }
+   } else {
+      for("cataclysm", "cataclysm-tiles") {
+         my $file = catfile $GAME_PATH, $_;
+         -f $file and return $file;
+      }
+   }
+   
+   die "Cannot find game executable.";
+}
+
+sub launch_game() {
+   my $executable = get_game_executable;
+   
+   say "Launch '$executable'";
+   exec $executable;
+   
+   exit;
+}
+
 sub get_build_version($) {
    my($path_or_url) = @_;
    return ($path_or_url =~ /(\d+)\D*$/)[0];
@@ -68,9 +95,9 @@ sub get_build_version($) {
 sub fetch_latest_game_url() {
    my($sysname, $arch) = (POSIX::uname)[0, 4];
    my $page_url = sprintf "http://dev.narc.ro/cataclysm/jenkins-latest/%s%s/%s/",
-                          $sysname =~ /win/i ? "Windows" : "Linux",
-                          $arch =~ /64/  ? "_x64" : "",
-                          $OPT{curses} ? "Curses" : "Tiles";
+                          $IS_WINDOWS  ? "Windows" : "Linux",
+                          $IS_64bit    ? "_x64"    : "",
+                          $OPT{curses} ? "Curses"  : "Tiles";
                       
    my $res = $LWP->get($page_url);
    die unless $res->is_success;
@@ -82,10 +109,10 @@ sub fetch_latest_game_url() {
 }
 
 sub check_for_update() {
-   say "'$VERSION_FILE' not found! Try --update" and exit
-      unless -s $VERSION_FILE;
+   say "'$MAIN_CONFIG->{version_file}' not found! Try --update" and exit
+      unless -s $MAIN_CONFIG->{version_file};
 
-   my $current_version = read_file $VERSION_FILE;
+   my $current_version = read_file $MAIN_CONFIG->{version_file};
    my $latest_version  = get_build_version fetch_latest_game_url;
    my $is_latest = $current_version >= $latest_version;
 
@@ -179,6 +206,11 @@ sub update_game() {
       remove_tree $data_folder;
    }
    
+   if(-d $FASTMOD_CONFIG->{fastmod_data_backup}) {
+      say "Delete '$FASTMOD_CONFIG->{fastmod_data_backup}'";
+      remove_tree $data_folder;
+   }
+   
    say "Extract '$archive_name' -> '$unpacked_folder'";
    my $archive = Archive::Extract->new(archive => $archive_name);
    $archive->extract(to => $unpacked_folder);
@@ -192,8 +224,8 @@ sub update_game() {
       # rmdir $archive->extract_path;
    }
    
-   say "Create '$VERSION_FILE'";
-   write_file $VERSION_FILE, get_build_version $url;
+   say "Create '$MAIN_CONFIG->{version_file}'";
+   write_file $MAIN_CONFIG->{version_file}, get_build_version $url;
    
    # Restore important files
    if(-d $tmp_folder) {
@@ -212,7 +244,7 @@ sub update_game() {
 }
 
 sub update_2ch_tileset() {
-   my $url = "https://github.com/SomeDeadGuy/Cata-MSX-DeadPeopleTileset/archive/master.zip";
+   my $url = $MAIN_CONFIG->{"2chtileset_url"};
    my $archive_name  = "DeadPeopleTileset.zip";
    my $unpacked_folder = "$archive_name.unpacked";
    
@@ -248,7 +280,7 @@ sub update_2ch_tileset() {
 }
 
 sub update_2ch_soundpack() {
-   my $url = "https://docs.google.com/uc?id=1ZQRqnPL7d9pjfH1GdZWft8ZmZFuq6XpD&export=download";
+   my $url = $MAIN_CONFIG->{"2chsoundpack_url"};
    my $archive_name  = "2chsound.zip";
    my $unpacked_folder = catdir ".", "sound";
    
@@ -275,7 +307,7 @@ sub update_2ch_soundpack() {
 }
 
 sub update_2ch_musicpack() {
-   my $url = "https://docs.google.com/uc?id=1n7UWnZzQC270Q7bpHdczIK0Yp-LKa16i&export=download";
+   my $url = $MAIN_CONFIG->{"2chmusic_url"};
    my $archive_name  = "2chmusic.zip";
    my $unpacked_folder = catdir ".", "sound", "2ch sounpack";
    
@@ -349,28 +381,18 @@ sub install_mod_from_github {
 #
 ################################################################################
 sub report(@) {
-   my(@strings) = map { "$_\n" } @_;
+   my(@strings) = join "\n", @_;
 
    state $log;
-   open $log, ">", $MOD_LOG unless defined $log;
+   open $log, ">", catfile($LAUNCHER_PATH, $FASTMOD_CONFIG->{log_file}) unless defined $log;
    #print @strings;
    print $log @strings;
-}
-
-sub json_to_perl($) {
-   my($json_string) = @_;
-   JSON->new->utf8->decode($json_string);
-}
-
-sub perl_to_json($) {
-   my($array_ref) = @_;
-   JSON->new->utf8->allow_nonref->pretty->encode($array_ref);
 }
 
 sub compute_new_time($$) {
    my($original_time, $requirement_type) = @_;
    #$original_time = max(60000, $original_time);
-   int max 0, $original_time * $MOD_SETTINGS{"parts_${requirement_type}_time"};
+   int max 0, $original_time * $FASTMOD_CONFIG->{"parts_${requirement_type}_time"};
 }
 
 sub compute_time_from_difficulty($$) {
@@ -449,31 +471,31 @@ sub set_difficulty_to_requirements($$$) {
 }
 
 sub fast_mod_make_backup {
-   report "Backup original files to '$DATA_BACKUP'...";
-   dircopy catdir(".", "data", "json"), catdir(".", $DATA_BACKUP, "json");
-   dircopy catdir(".", "data", "mods"), catdir(".", $DATA_BACKUP, "mods");
+   report "Backup original files to '$FASTMOD_CONFIG->{data_backup}'...";
+   dircopy catdir(".", "data", "json"), catdir(".", $FASTMOD_CONFIG->{data_backup}, "json");
+   dircopy catdir(".", "data", "mods"), catdir(".", $FASTMOD_CONFIG->{data_backup}, "mods");
    report "Done";
 }
 
 sub fast_mod_restore {
-   unless(-d $DATA_BACKUP) {
-      say "'$DATA_BACKUP' not found!";
+   unless(-d $FASTMOD_CONFIG->{data_backup}) {
+      say "'$FASTMOD_CONFIG->{data_backup}' not found!";
       return;
    }
 
    say "Restoring original files...";
-   dircopy catdir(".", $DATA_BACKUP, "json"), catdir(".", "data", "json");
-   dircopy catdir(".", $DATA_BACKUP, "mods"), catdir(".", "data", "mods");
+   dircopy catdir(".", $FASTMOD_CONFIG->{data_backup}, "json"), catdir(".", "data", "json");
+   dircopy catdir(".", $FASTMOD_CONFIG->{data_backup}, "mods"), catdir(".", "data", "mods");
    
-   say "Delete 'data.bk'";
+   say "Delete '$FASTMOD_CONFIG->{data_backup}'";
    $OPT{keep} ? say "...skip deletion (--keep option)" :
-                remove_tree "data.bk";
+                remove_tree "$FASTMOD_CONFIG->{data_backup}";
    
 }
 
 sub fast_mod_apply {
-   if(-d $DATA_BACKUP) {
-      say "Game files already modified. Try --restore first";
+   if(-d $FASTMOD_CONFIG->{data_backup}) {
+      say "Game files already modified. Try --restore old files or --update to new build.";
       return;
    } else {
       fast_mod_make_backup;
@@ -570,7 +592,7 @@ sub fast_mod_apply {
             when("BOOK") {
                if(exists $node->{time}) {
                   my $old_time = $node->{time};
-                  my $new_time = int($old_time * $MOD_SETTINGS{books_time});
+                  my $new_time = int($old_time * $FASTMOD_CONFIG->{books_time});
                   $new_time = 1 if $new_time < 1 && $old_time >= 1;
                   $node->{time} = $new_time;
                   
@@ -585,7 +607,7 @@ sub fast_mod_apply {
                if(exists $node->{time}) {
                   my $id = get_id($node);
                   my $old_time = $node->{time};
-                  my $new_time = int($old_time * $MOD_SETTINGS{books_time});
+                  my $new_time = int($old_time * $FASTMOD_CONFIG->{books_time});
                   $new_time = 1 if $new_time < 1 && $old_time >= 1;
                   $node->{time} = $new_time;
                   
@@ -599,8 +621,8 @@ sub fast_mod_apply {
                }
             }
             when("mutation") {
-               if($node->{id} eq $MOD_SETTINGS{sleep_mutation_id}) {
-                  $node->{fatigue_regen_modifier} = $MOD_SETTINGS{sleep_acceliration};
+               if(any { $_ eq $node->{id} } @{ $FASTMOD_CONFIG->{sleep_mutations} }) {
+                  $node->{fatigue_regen_modifier} = $FASTMOD_CONFIG->{sleep_acceliration};
                   
                   report "Mutation '$node->{id}': faster sleep effect added";
                   
@@ -648,7 +670,7 @@ sub fast_mod_apply {
 
 GetOptions \%OPT,
    # Actions
-   "check", "update", "save", "load",
+   "launch", "check", "update", "save", "load",
    "2chtiles", "2chsound", "2chmusic",
    "fastmod", "restore",
    "mod=s@",
@@ -657,6 +679,7 @@ GetOptions \%OPT,
    "help|?"    => sub {
    print <<USAGE;
 Game:
+   --launch      Launch game executable
    --check       Check for aviable update
    --update      Install/Update game to latest version
                  Warning: non-standard mods in data/mods will be deleted,
@@ -675,8 +698,8 @@ Mods:
    --mod [link]  Install/Update a mod from gihub
 
 Options:
-   --keep        Don't delete temporal files
-   --nodownload  Don't download if file with same name already present
+   --keep        Don't delete temporary files
+   --nodownload  Don't download file if it already exists
    
 "Fast Cata" mod:
    --fastmod     Backup original files and apply mod
@@ -692,13 +715,14 @@ unless(%OPT) {
    exit;
 }
 
-check_for_update      if $OPT{check};
-update_game           if $OPT{update};
-update_2ch_tileset    if $OPT{"2chtiles"};
-update_2ch_soundpack  if $OPT{"2chsound"};
-update_2ch_musicpack  if $OPT{"2chmusic"};
-fast_mod_restore      if $OPT{restore};
-fast_mod_apply        if $OPT{fastmod};
-if($OPT{mod})  { install_mod_from_github $_ for @{$OPT{mod}}; }
-if($OPT{save}) { say "Backup saves...";  backup_files "save", "save.bk"; }
-if($OPT{load}) { say "Restore saves..."; backup_files "save.bk", "save"; }
+if($OPT{check})      { check_for_update }
+if($OPT{update})     { update_game }
+if($OPT{"2chtiles"}) { update_2ch_tileset }
+if($OPT{"2chsound"}) { update_2ch_soundpack }  
+if($OPT{"2chmusic"}) { update_2ch_musicpack } 
+if($OPT{restore})    { fast_mod_restore }      
+if($OPT{fastmod})    { fast_mod_apply }        
+if($OPT{mod})        { install_mod_from_github $_ for @{$OPT{mod}}; }
+if($OPT{save})       { say "Backup saves...";  backup_files "save", "save.bk"; }
+if($OPT{load})       { say "Restore saves..."; backup_files "save.bk", "save"; }
+if($OPT{launch})     { launch_game }

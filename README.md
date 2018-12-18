@@ -7,24 +7,33 @@
 - Установка 2ch sound pack и 2ch soundtrack (`--2chsound`, `--2chmusic`)
 - Создание резервной копии и восстановление миров (`--save`, `--load`)
 - Собственный мод "Fast Cata" (`--fastmod`, `--restore`)
+- Запуск игры (`--launch`)
 
 ## Использование
 
 ### Windows
 Для винды нужно скачать и установить [Stawberry Perl](http://strawberryperl.com/). Он включет в себя интерпретатор и все необходимые модули.
-Далее поместить `cata.pl` в папку с игрой (либо пустую папку, если нужно скачать игру) и запускать в командной строке:
+Далее поместить папку `cataclysm-launcher` в папку с игрой (либо в пустую папку, если нужно скачать игру) и запускать в командной строке:
 ```bat
+perl cataclysm-launcher\cata.pl --help
+```
+или
+```bat
+chdir cataclysm-launcher
 perl cata.pl --help
 ```
-Если установлен гит см. линуксовый вариант, достаточно заменить `ln` на `mklink cata.pl cataclysm-launcher\cata.pl`.
 
 ### Linux
-Можно клонировать эту репу в папку с игрой и линкануть скрипт:
+Можно клонировать эту репу в папку с игрой:
 ```bash
 cd Cataclysm
 git clone https://github.com/theanonym/cataclysm-launcher.git
-ln -s cataclysm-launcher/cata.pl cata.pl
 
+perl cataclysm-launcher/cata.pl --help
+```
+или
+```bash
+cd cataclysm-launcher
 perl cata.pl --help
 ```
 

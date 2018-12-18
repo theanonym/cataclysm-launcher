@@ -1,0 +1,13 @@
+{
+   "parts_install_time": 0.2,
+   "parts_repair_time":  0.2,
+   "parts_removal_time": 0.2,
+   "craft_time":         0.2,    
+   "books_time":         0.2,   
+   
+   "sleep_acceliration": 1.0,
+   "sleep_mutations": [ "HEAVYSLEEPER" ],
+   
+   "log_file":    "fastmod_log.txt",
+   "data_backup": "fastmod_data_backup"
+}
