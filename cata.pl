@@ -204,8 +204,8 @@ sub update_game() {
       remove_tree $data_folder;
    }
    
-   if(-d $FASTMOD_CONFIG->{fastmod_data_backup}) {
-      say "Delete '$FASTMOD_CONFIG->{fastmod_data_backup}'";
+   if(-d $FASTMOD_CONFIG->{data_backup}) {
+      say "Delete '$FASTMOD_CONFIG->{data_backup}'";
       remove_tree $FASTMOD_CONFIG;
    }
    
@@ -703,6 +703,8 @@ Options:
 "Fast Cata" mod:
    --fastmod     Backup original files and apply mod
    --restore     Restore original files
+                 Warning: this files may be from old build,
+                 use --update instead.
 USAGE
    exit;
 };
