@@ -20,11 +20,8 @@ use Archive::Extract;
 use LWP;
 use JSON;
 
-################################################################################
-#
-# Глобальные переменные
-#
-################################################################################
+#------------------------------------------------------------
+
 our $IS_WINDOWS = $ENV{OS} =~ /win/i;
 our $IS_64bit   = $ENV{PROCESSOR_ARCHITECTURE} =~ /64/;
 
@@ -44,11 +41,8 @@ $LWP->cookie_jar({});
 
 our %OPT;
 
-################################################################################
-#
-# Код лаунчера
-#
-################################################################################
+#------------------------------------------------------------
+
 sub json_to_perl($) {
    my($json_string) = join "\n", @_;
    JSON->new->utf8->decode($json_string);
@@ -373,11 +367,8 @@ sub install_mod_from_github {
                 unlink $archive_name; 
 }
 
-################################################################################
-#
-# Код мода
-#
-################################################################################
+#------------------------------------------------------------
+
 sub report(@) {
    my(@strings) = map { "$_\n" } @_;
 
@@ -470,8 +461,9 @@ sub set_difficulty_to_requirements($$$) {
 
 sub fast_mod_make_backup {
    report "Backup original files to '$FASTMOD_CONFIG->{data_backup}'...";
-   dircopy catdir(".", "data", "json"), catdir(".", $FASTMOD_CONFIG->{data_backup}, "json");
-   dircopy catdir(".", "data", "mods"), catdir(".", $FASTMOD_CONFIG->{data_backup}, "mods");
+   dircopy catdir(".", "data", "json"), catdir(".", $FASTMOD_CONFIG->{data_backup}, "data", "json");
+   dircopy catdir(".", "data", "mods"), catdir(".", $FASTMOD_CONFIG->{data_backup}, "data", "mods");
+   dircopy catdir(".", "mods"), catdir(".", $FASTMOD_CONFIG->{data_backup}, "mods");
    report "Done";
 }
 
@@ -482,8 +474,9 @@ sub fast_mod_restore {
    }
 
    say "Restoring original files...";
-   dircopy catdir(".", $FASTMOD_CONFIG->{data_backup}, "json"), catdir(".", "data", "json");
-   dircopy catdir(".", $FASTMOD_CONFIG->{data_backup}, "mods"), catdir(".", "data", "mods");
+   dirmove catdir(".", $FASTMOD_CONFIG->{data_backup}, "data", "json"), catdir(".", "data", "json");
+   dirmove catdir(".", $FASTMOD_CONFIG->{data_backup}, "data", "mods"), catdir(".", "data", "mods");
+   dirmove catdir(".", $FASTMOD_CONFIG->{data_backup}, "mods"), catdir(".", "mods");
    
    say "Delete '$FASTMOD_CONFIG->{data_backup}'";
    $OPT{keep} ? say "...skip deletion (--keep option)" :
@@ -507,6 +500,7 @@ sub fast_mod_apply {
          catdir(".", "data", "json", "items", "book"),
          catdir(".", "data", "json", "recipes"),
          catdir(".", "data", "mods"),
+         catdir(".", "mods"),
       ),
       catfile(".", "data", "json", "mutations.json"),
    ) {
@@ -661,11 +655,7 @@ sub fast_mod_apply {
    say "Done. Read '$FASTMOD_CONFIG->{log_file}' for details.";
 }
 
-################################################################################
-#
-# Начало программы
-#
-################################################################################
+#------------------------------------------------------------
 
 GetOptions \%OPT,
    # Actions

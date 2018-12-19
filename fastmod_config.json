@@ -9,5 +9,5 @@
    "sleep_mutations": [ "HEAVYSLEEPER" ],
    
    "log_file":    "fastmod_log.txt",
-   "data_backup": "fastmod_data_backup"
+   "data_backup": "fastmod_original_files"
 }
