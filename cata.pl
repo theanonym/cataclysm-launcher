@@ -19,6 +19,8 @@ use List::MoreUtils qw/first_index first_value any only_value /;
 use Archive::Extract;   
 use LWP;
 use JSON;
+use HTML::Entities qw/decode_entities/;
+use Date::Parse qw/strptime/;
 
 #------------------------------------------------------------
 
@@ -107,13 +109,20 @@ sub check_for_update() {
    my $current_version = read_file $MAIN_CONFIG->{version_file};
    my $latest_version  = get_build_version fetch_latest_game_url;
    my $is_latest = $current_version >= $latest_version;
-
+   my $version_diff = $latest_version - $current_version;
+   
    printf "Your build:   %d\nLatest build: %d (+%d)\n%s\n",
           $current_version,
           $latest_version,
-          $latest_version - $current_version,
+          $version_diff,
           $is_latest ? "Game is up to date!" :
                        "Try --update";
+                       
+   if(!$is_latest) {
+      say;
+      show_changelog($version_diff + 1);
+   }
+   
    return $is_latest;
 }
 
@@ -365,6 +374,29 @@ sub install_mod_from_github {
    say "Delete '$archive_name'";
    $OPT{keep} ? say "...skip deletion (--keep option)" :
                 unlink $archive_name; 
+}
+
+sub show_changelog($) {
+   my($maxcount) = @_;
+   $maxcount = max 1, $maxcount;
+
+   #say "Get changelog page...";
+   my $res = $LWP->get("http://gorgon.narc.ro:8080/job/Cataclysm-Matrix/changes");
+   die $res->status_line unless $res->is_success;
+   
+   my $html = $res->content;
+   while($html =~ m~<a href="(?<build>\d+)/changes">.*?\((?<build_time>.*?)\).*?(?<changelist><ol>.*?</ol>)~gs && $maxcount--) {
+      my($sec, $min, $hour, $day, $mon, $year) = strptime $+{build_time};
+      my $build_time = "$day.$mon.$year $hour:$min:$sec UTC";
+   
+      say "Build $+{build} ($build_time):";
+      
+      my $changelist = $+{changelist};
+      while($changelist =~ m~<li>(?<change>.*?) \(<a.*?<a href="/user/.*?/">(?:\d+\+)?(?<author>.*?)</a>~gs) {
+         say decode_entities "   $+{change} ($+{author})";
+      }
+      say;
+   }
 }
 
 #------------------------------------------------------------
@@ -659,17 +691,20 @@ sub fast_mod_apply {
 
 GetOptions \%OPT,
    # Actions
-   "launch", "check", "update", "save", "load",
+   "launch", "check", "changelog=i", "update", "save", "load",
    "2chtiles", "2chsound", "2chmusic",
-   "fastmod", "restore",
    "mod=s@",
+   "fastmod", "restore",
+   
    # Options
    "nodownload", "keep", "curses",
-   "help|?"    => sub {
+   
+   "help|?" => sub {
    print <<USAGE;
 Game:
    --launch      Launch game executable
    --check       Check for aviable update
+   --changelog N Show changelog for N latest builds
    --update      Install/Update game to latest version
                  Warning: non-standard mods in data/mods will be deleted,
                  use mods/ folder for them.
@@ -707,6 +742,7 @@ unless(%OPT) {
 }
 
 if($OPT{check})      { check_for_update }
+if($OPT{changelog})  { show_changelog $OPT{changelog} }
 if($OPT{update})     { update_game }
 if($OPT{"2chtiles"}) { update_2ch_tileset }
 if($OPT{"2chsound"}) { update_2ch_soundpack }  

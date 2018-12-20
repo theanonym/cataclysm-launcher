@@ -1,6 +1,7 @@
 ## Общая информация
 Кроссплатформенный лаунчер с рядом дополнительных функций.
 - Проверка наличия нового билда (`--check`)
+- Вывод списка изменений в последних билдах (`--changelog`)
 - Обновление игры с сохранением сейвов и настроек (`--update`)
 - Установка модов (`--mod [ссылка на гитхаб]`)
 - Установка свежей версии тайлсета DeadPeople (`--2chtileset`)
@@ -46,5 +47,5 @@ cpanm --notest XXX::XXX
 ```
 Команда для установки всех модулей сразу:
 ```bash
-cpanm --notest File::Slurp File::Find::Rule List::MoreUtils Archive::Extract LWP JSON
+cpanm --notest File::Slurp File::Find::Rule List::MoreUtils Archive::Extract LWP JSON HTML::Entities Date::Parse
 ```
