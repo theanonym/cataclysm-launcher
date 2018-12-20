@@ -200,7 +200,7 @@ sub update_game() {
    
    if(-d $FASTMOD_CONFIG->{data_backup}) {
       say "Delete '$FASTMOD_CONFIG->{data_backup}'";
-      remove_tree $FASTMOD_CONFIG;
+      remove_tree $FASTMOD_CONFIG->{data_backup};
    }
    
    say "Extract '$archive_name' -> '$unpacked_folder'";
