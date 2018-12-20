@@ -387,6 +387,7 @@ sub show_changelog($) {
    my $html = $res->content;
    while($html =~ m~<a href="(?<build>\d+)/changes">.*?\((?<build_time>.*?)\).*?(?<changelist><ol>.*?</ol>)~gs && $maxcount--) {
       my($sec, $min, $hour, $day, $mon, $year) = strptime $+{build_time};
+      $year += 1900;
       my $build_time = "$day.$mon.$year $hour:$min:$sec UTC";
    
       say "Build $+{build} ($build_time):";
