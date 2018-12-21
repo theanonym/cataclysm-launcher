@@ -34,6 +34,7 @@ our $FASTMOD_CONFIG  = json_to_perl(read_file catfile($LAUNCHER_PATH, "fastmod_c
 die "Cannot load config files." unless $MAIN_CONFIG && $FASTMOD_CONFIG;
 
 our $GAME_PATH = $MAIN_CONFIG->{game_path} ? $MAIN_CONFIG->{game_path} : catdir $LAUNCHER_PATH, "..";
+our $VERSION_FILE = catfile $GAME_PATH, "_VERSION.txt";
 
 chdir $GAME_PATH;
 
@@ -103,10 +104,10 @@ sub fetch_latest_game_url() {
 }
 
 sub check_for_update() {
-   say "'$MAIN_CONFIG->{version_file}' not found! Try --update" and exit
-      unless -s $MAIN_CONFIG->{version_file};
+   say "'$VERSION_FILE' not found! Try --update" and exit
+      unless -s $VERSION_FILE;
 
-   my $current_version = read_file $MAIN_CONFIG->{version_file};
+   my $current_version = read_file $VERSION_FILE;
    my $latest_version  = get_build_version fetch_latest_game_url;
    my $is_latest = $current_version >= $latest_version;
    my $version_diff = $latest_version - $current_version;
@@ -225,8 +226,8 @@ sub update_game() {
       # rmdir $archive->extract_path;
    }
    
-   say "Create '$MAIN_CONFIG->{version_file}'";
-   write_file $MAIN_CONFIG->{version_file}, get_build_version $url;
+   say "Create '$VERSION_FILE'";
+   write_file $VERSION_FILE, get_build_version $url;
    
    # Restore important files
    if(-d $tmp_folder) {
@@ -347,13 +348,13 @@ sub install_mod_from_github {
       say "Create 'mods'";
       mkdir "mods";
    }
-   
+
    # Download 
    $github_link =~ s~/\s*$~~s;
    my $url = "$github_link/archive/master.zip";
    my ($mod_name) = $github_link =~ m~/([^/]*)$~;
    my $archive_name = "$mod_name.zip";
-   
+
    say "Download '$archive_name'";
    ($OPT{nodownload} && -s $archive_name) ? say "...skip download (--nodownload option)" :
                                             download_file $url, $archive_name;
@@ -398,6 +399,13 @@ sub show_changelog($) {
       }
       say;
    }
+}
+
+sub update_mods() {
+   my @urls = @{ $MAIN_CONFIG->{mods} };
+   say "List of mods is not specified" and return unless @urls;
+   
+   install_mod_from_github $_ for @urls;
 }
 
 #------------------------------------------------------------
@@ -693,44 +701,46 @@ sub fast_mod_apply {
 GetOptions \%OPT,
    # Actions
    "launch", "check", "changelog=i", "update", "save", "load",
-   "2chtiles", "2chsound", "2chmusic",
-   "mod=s@",
-   "fastmod", "restore",
+   "2ch-tiles", "2ch-sound", "2ch-music",
+   "mod=s@", "update-mods",
+   "fastmod-apply", "fastmod-restore",
    
    # Options
-   "nodownload", "keep", "curses",
+   "no-download", "keep", "curses",
    
    "help|?" => sub {
    print <<USAGE;
 Game:
-   --launch      Launch game executable
-   --check       Check for aviable update
-   --changelog N Show changelog for N latest builds
-   --update      Install/Update game to latest version
-                 Warning: non-standard mods in data/mods will be deleted,
-                 use mods/ folder for them.
-   --curses      Dowload Curses version of game
+   --launch       Launch game executable
+   --check        Check for aviable update
+   --changelog    Show changelog for N latest builds
+   --update       Install/Update game to latest version
+                  Warning: non-standard mods in data/mods will be deleted,
+                  use mods/ folder for them.
+   --curses       Dowload Curses version of game
                
-   --save        Backup saves
-   --load        Restore saves
+   --save         Backup saves
+   --load         Restore saves
    
 Resources:
-   --2chtileset  Install/Update Dead People tileset
-   --2chsound    Install/Update 2ch Sounpack
-   --2chmusic    Install/Update 2ch Music Pack
+   --2ch-tileset  Install/Update Dead People tileset
+   --2ch-sound    Install/Update 2ch Sounpack
+   --2ch-music    Install/Update 2ch Music Pack
 
 Mods:
-   --mod [link]  Install/Update a mod from gihub
+   --mod [link]   Install/Update a mod from gihub
+   --update-mods  Update "mods" list from launcher_config.json
 
 Options:
-   --keep        Don't delete temporary files
-   --nodownload  Don't download file if it already exists
+   --keep         Don't delete temporary files
+   --no-download  Don't download file if it already exists
    
 "Fast Cata" mod:
-   --fastmod     Backup original files and apply mod
-   --restore     Restore original files
-                 Warning: this files may be from old build,
-                 use --update instead.
+   --fastmod-apply   Backup original files and apply mod
+   --fastmod-restore Restore original files
+                     Warning: this files may be from old build,
+                     use combination --update --update-mods --fastmod-apply
+   Mod can be configured in fastmod_config.json
 USAGE
    exit;
 };
@@ -742,15 +752,16 @@ unless(%OPT) {
    exit;
 }
 
-if($OPT{check})      { check_for_update }
-if($OPT{changelog})  { show_changelog $OPT{changelog} }
-if($OPT{update})     { update_game }
-if($OPT{"2chtiles"}) { update_2ch_tileset }
-if($OPT{"2chsound"}) { update_2ch_soundpack }  
-if($OPT{"2chmusic"}) { update_2ch_musicpack } 
-if($OPT{restore})    { fast_mod_restore }      
-if($OPT{fastmod})    { fast_mod_apply }        
-if($OPT{mod})        { install_mod_from_github $_ for @{$OPT{mod}}; }
-if($OPT{save})       { say "Backup saves...";  backup_files "save", "save.bk"; }
-if($OPT{load})       { say "Restore saves..."; backup_files "save.bk", "save"; }
-if($OPT{launch})     { launch_game }
+if($OPT{check})             { check_for_update }
+if($OPT{changelog})         { show_changelog $OPT{changelog} }
+if($OPT{update})            { update_game }
+if($OPT{"update-mods"})     { update_mods }
+if($OPT{"2ch-tiles"})       { update_2ch_tileset }
+if($OPT{"2ch-sound"})       { update_2ch_soundpack }  
+if($OPT{"2ch-music"})       { update_2ch_musicpack } 
+if($OPT{mod})               { install_mod_from_github $_ for @{$OPT{mod}}; }
+if($OPT{"fastmod-restore"}) { fast_mod_restore }      
+if($OPT{"fastmod-apply"})   { fast_mod_apply }        
+if($OPT{save})              { say "Backup saves...";  backup_files "save", "save.bk"; }
+if($OPT{load})              { say "Restore saves..."; backup_files "save.bk", "save"; }
+if($OPT{launch})            { launch_game }
