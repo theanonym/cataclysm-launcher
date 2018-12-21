@@ -403,7 +403,7 @@ sub show_changelog($) {
 
 sub update_mods() {
    my @urls = @{ $MAIN_CONFIG->{mods} };
-   say "List of mods is not specified" and return unless @urls;
+   say "List of mods is not specified in config file" and return unless @urls;
    
    install_mod_from_github $_ for @urls;
 }
@@ -530,17 +530,17 @@ sub fast_mod_apply {
       say "Game files already modified. Try --restore old files or --update --update-mods to new build.";
       return;
    } else {
+      say "Backup original files to '$FASTMOD_CONFIG->{data_backup}'...";
       fast_mod_make_backup;
    }
 
    say "Apply Fast Mod...";
-   
-   my %count = (checked => 0, modified => 0, parts => 0, books => 0, mutations => 0);
-
+   my %count;
    for my $file_path (
       File::Find::Rule->file->name("*.json")->in(
          catdir(".", "data", "json", "vehicleparts"),
          catdir(".", "data", "json", "items", "book"),
+         catdir(".", "data", "json", "uncraft"),
          catdir(".", "data", "json", "recipes"),
          catdir(".", "data", "mods"),
          catdir(".", "mods"),
@@ -655,6 +655,23 @@ sub fast_mod_apply {
                   report "Recipe '$id' has no time";
                }
             }
+            when("uncraft") {
+               if(exists $node->{time}) {
+                  my $id = get_id($node);
+                  my $old_time = $node->{time};
+                  my $new_time = int($old_time * $FASTMOD_CONFIG->{uncraft_time});
+                  $new_time = 1 if $new_time < 1 && $old_time >= 1;
+                  $node->{time} = $new_time;
+                  
+                  report "Recipe '$id': change uncraft time $old_time -> $new_time";
+                  
+                  $file_modified = 1;
+                  $node_modified = 1;
+                  $count{uncraft}++;
+               } else {
+                  report "Recipe '$id' has no time";
+               }
+            }
             when("mutation") {
                if(any { $_ eq $node->{id} } @{ $FASTMOD_CONFIG->{sleep_mutations} }) {
                   $node->{fatigue_regen_modifier} = $FASTMOD_CONFIG->{sleep_acceliration};
@@ -693,6 +710,7 @@ sub fast_mod_apply {
           "Parts: $count{parts}",
           "Books: $count{books}",
           "Recipes: $count{recipes}",
+          "Uncrafts: $count{uncraft}",
           "Mutations: $count{mutations}";
           
    say "Done. Read '$FASTMOD_CONFIG->{log_file}' for details.";
