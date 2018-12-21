@@ -34,7 +34,7 @@ our $FASTMOD_CONFIG  = json_to_perl(read_file catfile($LAUNCHER_PATH, "fastmod_c
 die "Cannot load config files." unless $MAIN_CONFIG && $FASTMOD_CONFIG;
 
 our $GAME_PATH = $MAIN_CONFIG->{game_path} ? $MAIN_CONFIG->{game_path} : catdir $LAUNCHER_PATH, "..";
-our $VERSION_FILE = catfile $GAME_PATH, "_VERSION.txt";
+our $VERSION_FILE = catfile $GAME_PATH, "BUILD_VERSION.txt";
 
 chdir $GAME_PATH;
 
@@ -91,7 +91,7 @@ sub get_build_version($) {
 sub fetch_latest_game_url() {
    my $page_url = sprintf "http://dev.narc.ro/cataclysm/jenkins-latest/%s%s/%s/",
                           $IS_WINDOWS  ? "Windows" : "Linux",
-                          $IS_64bit    ? "_x64"    : "",
+                          ($IS_64bit && !$OPT{"32bit"}) ? "_x64" : "",
                           $OPT{curses} ? "Curses"  : "Tiles";
                       
    my $res = $LWP->get($page_url);
@@ -527,12 +527,14 @@ sub fast_mod_restore {
 
 sub fast_mod_apply {
    if(-d $FASTMOD_CONFIG->{data_backup}) {
-      say "Game files already modified. Try --restore old files or --update to new build.";
+      say "Game files already modified. Try --restore old files or --update --update-mods to new build.";
       return;
    } else {
       fast_mod_make_backup;
    }
 
+   say "Apply Fast Mod...";
+   
    my %count = (checked => 0, modified => 0, parts => 0, books => 0, mutations => 0);
 
    for my $file_path (
@@ -706,7 +708,7 @@ GetOptions \%OPT,
    "fastmod-apply", "fastmod-restore",
    
    # Options
-   "no-download", "keep", "curses",
+   "no-download", "keep", "curses", "32bit",
    
    "help|?" => sub {
    print <<USAGE;
@@ -717,7 +719,6 @@ Game:
    --update       Install/Update game to latest version
                   Warning: non-standard mods in data/mods will be deleted,
                   use mods/ folder for them.
-   --curses       Dowload Curses version of game
                
    --save         Backup saves
    --load         Restore saves
@@ -732,6 +733,8 @@ Mods:
    --update-mods  Update "mods" list from launcher_config.json
 
 Options:
+   --curses       Download Curses version
+   --32bit        Download 32-bit version
    --keep         Don't delete temporary files
    --no-download  Don't download file if it already exists
    
