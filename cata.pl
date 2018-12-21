@@ -21,6 +21,8 @@ use LWP;
 use JSON;
 use HTML::Entities qw/decode_entities/;
 use Date::Parse qw/strptime/;
+use MIME::Base64 qw/encode_base64 decode_base64/;
+use Encode;
 
 #------------------------------------------------------------
 
@@ -29,8 +31,8 @@ our $IS_64bit   = $ENV{PROCESSOR_ARCHITECTURE} =~ /64/;
 
 our $LAUNCHER_PATH = $FindBin::Bin;
 
-our $MAIN_CONFIG     = json_to_perl(read_file catfile($LAUNCHER_PATH, "launcher_config.json"));
-our $FASTMOD_CONFIG  = json_to_perl(read_file catfile($LAUNCHER_PATH, "fastmod_config.json"));
+our $MAIN_CONFIG     = json_to_perl(scalar read_file catfile($LAUNCHER_PATH, "launcher_config.json"));
+our $FASTMOD_CONFIG  = json_to_perl(scalar read_file catfile($LAUNCHER_PATH, "fastmod_config.json"));
 die "Cannot load config files." unless $MAIN_CONFIG && $FASTMOD_CONFIG;
 
 our $GAME_PATH = $MAIN_CONFIG->{game_path} ? $MAIN_CONFIG->{game_path} : catdir $LAUNCHER_PATH, "..";
@@ -47,7 +49,9 @@ our %OPT;
 #------------------------------------------------------------
 
 sub json_to_perl($) {
-   my($json_string) = join "\n", @_;
+   my($json_string) = @_;
+   $json_string =~ s/^#\s*version.*?$//mi;
+   
    JSON->new->utf8->decode($json_string);
 }
 
@@ -117,12 +121,7 @@ sub check_for_update() {
           $latest_version,
           $version_diff,
           $is_latest ? "Game is up to date!" :
-                       "Try --update";
-                       
-   if(!$is_latest) {
-      say;
-      show_changelog($version_diff + 1);
-   }
+                       "Try --update, --changelog";
    
    return $is_latest;
 }
@@ -341,7 +340,7 @@ sub update_2ch_musicpack() {
                 unlink $archive_name; 
 }
 
-sub install_mod_from_github {
+sub install_mod_from_github($) {
    my($github_link) = @_;
 
    unless(-d "mods") {
@@ -350,7 +349,7 @@ sub install_mod_from_github {
    }
 
    # Download 
-   $github_link =~ s~/\s*$~~s;
+   $github_link =~ s~/(archive/master.zip)?\s*$~~s;
    my $url = "$github_link/archive/master.zip";
    my ($mod_name) = $github_link =~ m~/([^/]*)$~;
    my $archive_name = "$mod_name.zip";
@@ -406,6 +405,39 @@ sub update_mods() {
    say "List of mods is not specified in config file" and return unless @urls;
    
    install_mod_from_github $_ for @urls;
+}
+
+sub copy_character($) {
+   my($options) = @_;
+   my($original_char_name, $original_world_name, $destination_world, $replace_char_name)
+      = ($options->{name}, $options->{from}, $options->{to}, $options->{replace});
+
+   (my $original_char_name_base64 = encode_base64($original_char_name)) =~ s/\s//gm;
+   
+   my $original_world_dir    = catdir("save", $original_world_name);
+   my $destination_world_dir = catdir("save", $destination_world);
+   my $original_char_file    = catfile($original_world_dir, "#$original_char_name_base64.sav");
+   
+   die "'Original' world '$original_world_dir' not found\n"  unless -d $original_world_dir;
+   die "'Destination' world '$destination_world_dir' not found\n" unless -d $destination_world_dir;
+   die "'Original' character '$original_char_name' not found in 'From' world '$original_world_dir'\n" unless -f $original_char_file;
+   
+   my $original_char_json = json_to_perl(read_file($original_char_file));
+   
+   if($replace_char_name) {
+      (my $replace_char_name_base64 = encode_base64($replace_char_name)) =~ s/\s//gm;
+      my $replace_char_file = catfile($destination_world_dir, "#$replace_char_name_base64.sav");
+   
+      die "'To replace' character '$replace_char_name' not found in 'destination' world '$destination_world_dir'\n" unless -f $replace_char_file;
+      
+      say "Copy char '$original_char_name' to world '$destination_world' and replace '$replace_char_name'";
+      my $replace_char_json = json_to_perl(read_file($replace_char_file));
+      $replace_char_json->{player} = $original_char_json->{player};
+      write_file($replace_char_file, perl_to_json($replace_char_json));
+   } else {
+      say "Copy char '$original_char_name' to world '$destination_world'";
+      copy($original_char_file, catfile($destination_world_dir, basename($original_char_file)));
+   }
 }
 
 #------------------------------------------------------------
@@ -718,11 +750,13 @@ sub fast_mod_apply {
 
 #------------------------------------------------------------
 
+map { Encode::from_to($_, "cp1251", "utf-8") } @ARGV if $IS_WINDOWS;
+
 GetOptions \%OPT,
    # Actions
-   "launch", "check", "changelog=i", "update", "save", "load",
+   "launch", "check", "changelog=i", "update", "save", "load", "copy-char=s%{,}",
    "2ch-tiles", "2ch-sound", "2ch-music",
-   "mod=s@", "update-mods",
+   "mod=s{1,}", "update-mods",
    "fastmod-apply", "fastmod-restore",
    
    # Options
@@ -733,7 +767,7 @@ GetOptions \%OPT,
 Game:
    --launch       Launch game executable
    --check        Check for aviable update
-   --changelog    Show changelog for N latest builds
+   --changelog    [N] Show changelog for N latest builds
    --update       Install/Update game to latest version
                   Warning: non-standard mods in data/mods will be deleted,
                   use mods/ folder for them.
@@ -741,13 +775,16 @@ Game:
    --save         Backup saves
    --load         Restore saves
    
+   --copy-char    [name="Name" from="World1" to="World2" [replace="Name2"]]
+                  Copy player character
+   
 Resources:
    --2ch-tileset  Install/Update Dead People tileset
    --2ch-sound    Install/Update 2ch Sounpack
    --2ch-music    Install/Update 2ch Music Pack
 
 Mods:
-   --mod [link]   Install/Update a mod from gihub
+   --mod          [link] Install/Update a mod from gihub
    --update-mods  Update "mods" list from launcher_config.json
 
 Options:
@@ -780,9 +817,10 @@ if($OPT{"update-mods"})     { update_mods }
 if($OPT{"2ch-tiles"})       { update_2ch_tileset }
 if($OPT{"2ch-sound"})       { update_2ch_soundpack }  
 if($OPT{"2ch-music"})       { update_2ch_musicpack } 
-if($OPT{mod})               { install_mod_from_github $_ for @{$OPT{mod}}; }
+if(ref $OPT{mod})           { install_mod_from_github $_ for @{ $OPT{mod} }; }
 if($OPT{"fastmod-restore"}) { fast_mod_restore }      
 if($OPT{"fastmod-apply"})   { fast_mod_apply }        
 if($OPT{save})              { say "Backup saves...";  backup_files "save", "save.bk"; }
 if($OPT{load})              { say "Restore saves..."; backup_files "save.bk", "save"; }
+if(ref $OPT{"copy-char"})   { copy_character $OPT{"copy-char"} }
 if($OPT{launch})            { launch_game }
