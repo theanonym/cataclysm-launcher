@@ -22,7 +22,7 @@ use JSON;
 use HTML::Entities qw/decode_entities/;
 use Date::Parse qw/strptime/;
 use MIME::Base64 qw/encode_base64 decode_base64/;
-use Encode;
+use Encode qw/encode decode/;
 
 #------------------------------------------------------------
 
@@ -45,6 +45,21 @@ $LWP->agent("Mozilla/5.0 (Windows NT 6.1; rv:64.0) Gecko/20100101 Firefox/64.0")
 $LWP->cookie_jar({});
 
 our %OPT;
+
+#------------------------------------------------------------
+
+# Turn all windows shit to utf8
+if($IS_WINDOWS) {
+   # Terminal
+   `chcp 65001`;
+   
+   # Argv
+   require Encode::Locale;
+   map { $_ = Encode::decode(locale => $_, 1) } @ARGV;
+   
+   # Stdout
+   binmode STDOUT, ":unix:utf8";
+}
 
 #------------------------------------------------------------
 
@@ -412,7 +427,7 @@ sub copy_character($) {
    my($original_char_name, $original_world_name, $destination_world, $replace_char_name)
       = ($options->{name}, $options->{from}, $options->{to}, $options->{replace});
 
-   (my $original_char_name_base64 = encode_base64($original_char_name)) =~ s/\s//gm;
+   (my $original_char_name_base64 = encode_base64(Encode::encode("utf-8", $original_char_name))) =~ s/\s//gm;
    
    my $original_world_dir    = catdir("save", $original_world_name);
    my $destination_world_dir = catdir("save", $destination_world);
@@ -425,7 +440,7 @@ sub copy_character($) {
    my $original_char_json = json_to_perl(read_file($original_char_file));
    
    if($replace_char_name) {
-      (my $replace_char_name_base64 = encode_base64($replace_char_name)) =~ s/\s//gm;
+      (my $replace_char_name_base64 = encode_base64(Encode::encode("utf-8", $replace_char_name))) =~ s/\s//gm;
       my $replace_char_file = catfile($destination_world_dir, "#$replace_char_name_base64.sav");
    
       die "'To replace' character '$replace_char_name' not found in 'destination' world '$destination_world_dir'\n" unless -f $replace_char_file;
@@ -749,8 +764,6 @@ sub fast_mod_apply {
 }
 
 #------------------------------------------------------------
-
-map { Encode::from_to($_, "cp1251", "utf-8") } @ARGV if $IS_WINDOWS;
 
 GetOptions \%OPT,
    # Actions
