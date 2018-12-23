@@ -1,8 +1,8 @@
-#!/bin/perl
+#!/usr/bin/perl
 use v5.20;
 use utf8;
 use autodie;
-no warnings "experimental";
+no  warnings "experimental";
 
 use Getopt::Long;
 use FindBin;
@@ -23,11 +23,12 @@ use HTML::Entities qw/decode_entities/;
 use Date::Parse qw/strptime/;
 use MIME::Base64 qw/encode_base64 decode_base64/;
 use Encode qw/encode decode/;
+use Config;
 
 #------------------------------------------------------------
 
-our $IS_WINDOWS = $ENV{OS} =~ /win/i;
-our $IS_64bit   = $ENV{PROCESSOR_ARCHITECTURE} =~ /64/;
+our $IS_WINDOWS = $Config{osname} =~ /win/i;
+our $IS_64bit   = $Config{archname} =~ /64/;
 
 our $LAUNCHER_PATH = $FindBin::Bin;
 
@@ -97,7 +98,7 @@ sub launch_game() {
    my $executable = get_game_executable;
    
    say "Launch '$executable'";
-   exec $executable;
+   exec "$executable " . ($IS_WINDOWS ? "" : "&");
    
    exit;
 }

@@ -30,10 +30,6 @@
 Для винды нужно скачать и установить [Stawberry Perl](http://strawberryperl.com/). Он включет в себя интерпретатор и все необходимые модули.
 Далее поместить папку `cataclysm-launcher` в папку с игрой (либо в пустую папку, если нужно скачать игру) и запускать в командной строке:
 ```bat
-perl cataclysm-launcher\cata.pl --help
-```
-или
-```bat
 chdir cataclysm-launcher
 perl cata.pl --help
 ```
@@ -43,13 +39,8 @@ perl cata.pl --help
 ```bash
 cd Cataclysm
 git clone https://github.com/theanonym/cataclysm-launcher.git
-
-perl cataclysm-launcher/cata.pl --help
-```
-или
-```bash
 cd cataclysm-launcher
-perl cata.pl --help
+./cata.pl --help
 ```
 
 В случае ошибки "Can't locate ХХХ/XXX.pm" нужно установить `cpanminus` и с его помощью стянуть недостающие модули (от рута):
