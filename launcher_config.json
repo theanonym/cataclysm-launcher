@@ -4,6 +4,13 @@
    "2chtileset_url":   "https://github.com/SomeDeadGuy/Cata-MSX-DeadPeopleTileset/archive/master.zip",
    "2chsoundpack_url": "https://docs.google.com/uc?id=17-LLs7xXyuSGoi8QN4qOZ5-T5kT-Am3U&export=download",
    "2chmusic_url":     "https://docs.google.com/uc?id=1n7UWnZzQC270Q7bpHdczIK0Yp-LKa16i&export=download",
-   
+
+   "fonts": [
+      "http://strlen.com/files/square.ttf",
+      "https://www.1001freefonts.com/d/5488/press-start-2p.zip"
+   ],
+
+   "linux_curses_command": "xterm -xrm '*renderFont:false' -fn -xos4-terminus-medium-r-normal--14-140-72-72-c-80-iso10646-1 -maximized -e % &",
+
    "game_path": ""
 }
