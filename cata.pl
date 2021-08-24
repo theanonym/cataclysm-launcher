@@ -37,7 +37,7 @@ our $FASTMOD_CONFIG  = json_to_perl(scalar read_file catfile($LAUNCHER_PATH, "fa
 die "Cannot load config files." unless $MAIN_CONFIG && $FASTMOD_CONFIG;
 
 our $GAME_PATH = $MAIN_CONFIG->{game_path} ? $MAIN_CONFIG->{game_path} : catdir $LAUNCHER_PATH, "..";
-our $VERSION_FILE = catfile $GAME_PATH, "BUILD_VERSION.txt";
+our $VERSION_FILE = catfile $GAME_PATH, "VERSION.txt";
 our $DOWNLOADED_FONTS = catdir $LAUNCHER_PATH, "downloaded_fonts";
 our $LINUX_INSTALLED_FONTS = "$ENV{HOME}/.fonts";
 
@@ -82,18 +82,16 @@ sub perl_to_json($) {
 
 sub get_game_executable() {
    if($IS_WINDOWS) {
-      for("cataclysm.exe", "cataclysm-tiles.exe") {
-         my $file = catfile $GAME_PATH, $_;
-         -f $file and return $file;
-      }
+      my $console = catfile $GAME_PATH, "cataclysm.exe";
+      my $tiles   = catfile $GAME_PATH, "cataclysm-tiles.exe";
+      
+      return -f $console ? $console : $tiles;
    } else {
-      for("cataclysm", "cataclysm-tiles") {
-         my $file = catfile $GAME_PATH, $_;
-         -f $file and return $file;
-      }
+      my $console = catfile $GAME_PATH, "cataclysm";
+      my $tiles   = catfile $GAME_PATH, "cataclysm-tiles";
+      
+      return -f $console ? $console : $tiles;
    }
-
-   die "Cannot find game executable.";
 }
 
 sub launch_game() {
@@ -138,7 +136,7 @@ sub check_for_update() {
    say "'$VERSION_FILE' not found! Try --update" and exit
       unless -s $VERSION_FILE;
 
-   my $current_version = read_file $VERSION_FILE;
+   my($current_version) = (read_file $VERSION_FILE) =~ /Build number : #(.*?$)/gms;
    my $latest_version  = get_build_version fetch_latest_game_url;
    my $is_latest = $current_version >= $latest_version;
    my $version_diff = $latest_version - $current_version;
@@ -198,8 +196,8 @@ sub update_game() {
 
    # Download
    say "Download '$archive_name'";
-   $OPT{nodownload} && -s $archive_name ?  say "...skip download (--nodownload option)" :
-                                           download_file $url, $archive_name;
+   $OPT{"no-download"} && -s $archive_name ?  say "...skip download (--no-download option)" :
+                                              download_file $url, $archive_name;
 
    # Save important files
    my $data_folder = "data";
@@ -254,9 +252,6 @@ sub update_game() {
       # printf "Delete '%s'", basename($archive->extract_path);
       # rmdir $archive->extract_path;
    }
-
-   say "Create '$VERSION_FILE'";
-   write_file $VERSION_FILE, get_build_version $url;
 
    # Restore important files
    if(-d $tmp_folder) {
@@ -851,11 +846,6 @@ Game:
    --copy-char  [name="Name" from="World1" to="World2" [replace="Name2"]]
                 Copy player character
 
-Resources:
-   --2ch-tileset  Install/Update Dead People tileset
-   --2ch-sound    Install/Update 2ch Sounpack
-   --2ch-music    Install/Update 2ch Music Pack
-
 Mods:
    --mod          [link] Install/Update a mod from gihub
    --update-mods  Install/Update "mods" list from launcher_config.json
@@ -869,13 +859,6 @@ Linux specific:
    --curses          Download/Launch Curses version
    --fonts-download  Download "fonts" list from launcher_config.json
    --fonts-install   Copy downloaded fonts to ~/.fonts
-
-"Fast Cata" mod:
-   --fastmod-apply    Backup original files and apply mod
-   --fastmod-restore  Restore original files
-                      Warning: this files may be from old build,
-                      use combination --update --update-mods --fastmod-apply
-   Mod can be configured in fastmod_config.json
 USAGE
    exit;
 };
@@ -891,14 +874,14 @@ if($OPT{check})             { check_for_update }
 if($OPT{changelog})         { show_changelog $OPT{changelog} }
 if($OPT{update})            { update_game }
 if($OPT{"update-mods"})     { update_mods }
-if($OPT{"2ch-tiles"})       { update_2ch_tileset }
-if($OPT{"2ch-sound"})       { update_2ch_soundpack }
-if($OPT{"2ch-music"})       { update_2ch_musicpack }
+#if($OPT{"2ch-tiles"})       { update_2ch_tileset }
+#if($OPT{"2ch-sound"})       { update_2ch_soundpack }
+#if($OPT{"2ch-music"})       { update_2ch_musicpack }
 if($OPT{"fonts-download"})  { download_font $_ for @{ $MAIN_CONFIG->{fonts} }; }
 if($OPT{"fonts-install"})   { install_fonts }
 if(ref $OPT{mod})           { install_mod_from_github $_ for @{ $OPT{mod} }; }
-if($OPT{"fastmod-restore"}) { fast_mod_restore }
-if($OPT{"fastmod-apply"})   { fast_mod_apply }
+#if($OPT{"fastmod-restore"}) { fast_mod_restore }
+#if($OPT{"fastmod-apply"})   { fast_mod_apply }
 if($OPT{save})              { say "Backup saves...";  backup_files "save", "save.bk"; }
 if($OPT{load})              { say "Restore saves..."; backup_files "save.bk", "save"; }
 if(ref $OPT{"copy-char"})   { copy_character $OPT{"copy-char"} }
